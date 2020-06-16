@@ -1,24 +1,73 @@
-FROM ubuntu:18.04
+FROM amazonlinux:2
 
-RUN apt update && apt upgrade -y
-RUN apt install -y --no-install-recommends \
-    build-essential git curl wget \
-    python3 python3.6 python3.6-dev python3.6-distutils python3-pip python3-venv python3.6-venv \
-    sudo vim pkg-config cmake autoconf automake libtool \
-    gstreamer-1.0 gstreamer1.0-dev libgstreamer1.0-0 gstreamer1.0-plugins-base \
-    gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly \
-    gstreamer1.0-libav gstreamer1.0-doc gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-alsa \
-    gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-qt5 gstreamer1.0-pulseaudio \
-    python-gst-1.0 libgirepository1.0-dev libgstreamer-plugins-base1.0-dev \
-    libcairo2-dev gir1.2-gstreamer-1.0 python3-gi python-gi-dev python3-keras
-RUN git clone https://github.com/jackersson/gst-plugins-tf.git
-WORKDIR gst-plugins-tf
-RUN python3 -m venv venv
-RUN . venv/bin/activate && pip install --upgrade wheel pip setuptools
-RUN . venv/bin/activate && pip install --upgrade -r requirements.txt
-RUN . venv/bin/activate && pip install tensorflow==1.15
-RUN wget https://github.com/iterative/dvc/releases/download/0.94.0/dvc_0.94.0_amd64.deb
-RUN dpkg -i dvc_0.94.0_amd64.deb
-ENV GOOGLE_APPLICATION_CREDENTIALS=/gst-plugins-tf/credentials/gs_viewer.json
-RUN dvc pull
-RUN rm dvc_0.94.0_amd64.deb
+# Set ENV_VAR for Greengrass RC to be untarred inside Docker Image
+ARG GREENGRASS_RELEASE_URL=https://d1onfpft10uf5o.cloudfront.net/greengrass-core/downloads/1.10.1/greengrass-linux-x86-64-1.10.1.tar.gz
+
+# Install Greengrass Core Dependencies
+RUN yum update -y && \
+    yum install -y shadow-utils tar.x86_64 gzip xz wget iproute java-1.8.0 make && \
+    yum install -y openssl-devel python27 python37 && \
+    ln -s /usr/bin/java /usr/local/bin/java8 && \
+    wget $GREENGRASS_RELEASE_URL && \
+    wget https://nodejs.org/dist/v6.10.2/node-v6.10.2-linux-x64.tar.xz && \
+    tar xf node-v6.10.2-linux-x64.tar.xz && \
+    cp node-v6.10.2-linux-x64/bin/node /usr/bin/nodejs6.10 && \
+    wget https://nodejs.org/dist/v8.10.0/node-v8.10.0-linux-x64.tar.xz && \
+    tar xf node-v8.10.0-linux-x64.tar.xz && \
+    cp node-v8.10.0-linux-x64/bin/node /usr/bin/nodejs8.10 && \
+    wget https://nodejs.org/dist/v12.13.0/node-v12.13.0-linux-x64.tar.xz && \
+    tar xf node-v12.13.0-linux-x64.tar.xz && \
+    cp node-v12.13.0-linux-x64/bin/node /usr/bin/nodejs12.x && \
+    ln -s /usr/bin/nodejs12.x /usr/bin/node && \
+    rm -rf node-v6.10.2-linux-x64.tar.xz node-v6.10.2-linux-x64 && \
+    rm -rf node-v8.10.0-linux-x64.tar.xz node-v8.10.0-linux-x64 && \
+    rm -rf node-v12.13.0-linux-x64 node-v12.13.0-linux-x64.tar.xz && \
+    yum remove -y wget && \
+    rm -rf /var/cache/yum
+
+# Copy Greengrass Licenses AWS IoT Greengrass Docker Image
+COPY greengrass-license-v1.pdf /
+
+# Copy start-up script
+COPY "greengrass-entrypoint.sh" /
+
+# Setup Greengrass inside Docker Image
+RUN export GREENGRASS_RELEASE=$(basename $GREENGRASS_RELEASE_URL) && \
+    tar xzf $GREENGRASS_RELEASE -C / && \
+    rm $GREENGRASS_RELEASE && \
+    useradd -r ggc_user && \
+    groupadd -r ggc_group
+
+# Expose 8883 to pub/sub MQTT messages
+EXPOSE 8883
+
+RUN yum update -y && \
+    yum install -y gstreamer1 gstreamer1-devel gstreamer1-plugins-base \
+    gstreamer1-plugins-base-devel gstreamer1-plugins-bad-free \
+    gstreamer1-plugins-bad-free-devel gstreamer1-plugins-good \
+    gstreamer1-plugins-base-tools gstreamer1-plugins-bad-free-gtk \
+    gstreamer1-plugins-ugly-free gstreamer1-plugins-ugly-free-devel && \
+    yum remove -y wget && \
+    rm -rf /var/cache/yum
+
+RUN yum update -y && \
+    yum group install -y Development tools && \
+    yum remove -y wget && \
+    rm -rf /var/cache/yum
+
+RUN git clone https://github.com/GStreamer/gst-python.git
+
+WORKDIR gst-python
+
+RUN yum update -y && \
+    yum install -y python3-devel pycairo pycairo-devel pygobject3-devel && \
+    rm -rf /var/cache/yum
+
+RUN git fetch --tag
+RUN git checkout `gst-launch-1.0 --version | head -n1 | awk '{print $NF}'`
+ENV PYTHON=/usr/bin/python3
+RUN ./autogen.sh --disable-gtk-doc --noconfigure
+RUN ./configure
+RUN make -j8 && make install
+#ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH:/usr/local/lib/gstreamer-1.0:/gst-python/examples/plugins
+#ENV GST_DEBUG=python:4
