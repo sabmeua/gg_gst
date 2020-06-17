@@ -46,8 +46,8 @@ RUN yum update -y && \
     gstreamer1-plugins-base-devel gstreamer1-plugins-bad-free \
     gstreamer1-plugins-bad-free-devel gstreamer1-plugins-good \
     gstreamer1-plugins-base-tools gstreamer1-plugins-bad-free-gtk \
-    gstreamer1-plugins-ugly-free gstreamer1-plugins-ugly-free-devel && \
-    yum remove -y wget && \
+    gstreamer1-plugins-ugly-free gstreamer1-plugins-ugly-free-devel \
+    python3-devel pycairo pycairo-devel pygobject3-devel cairo-gobject-devel && \
     rm -rf /var/cache/yum
 
 RUN yum update -y && \
@@ -56,18 +56,17 @@ RUN yum update -y && \
     rm -rf /var/cache/yum
 
 RUN git clone https://github.com/GStreamer/gst-python.git
-
 WORKDIR gst-python
-
-RUN yum update -y && \
-    yum install -y python3-devel pycairo pycairo-devel pygobject3-devel && \
-    rm -rf /var/cache/yum
 
 RUN git fetch --tag
 RUN git checkout `gst-launch-1.0 --version | head -n1 | awk '{print $NF}'`
 ENV PYTHON=/usr/bin/python3
-RUN ./autogen.sh --disable-gtk-doc --noconfigure
-RUN ./configure
+RUN ./autogen.sh --disable-gtk-doc
 RUN make -j8 && make install
-#ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH:/usr/local/lib/gstreamer-1.0:/gst-python/examples/plugins
-#ENV GST_DEBUG=python:4
+
+ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH:/usr/local/lib/gstreamer-1.0:/gst-python/examples/plugins
+ENV GST_DEBUG=python:4
+RUN pip3 install PyGObject
+
+RUN ln -s /lib/python2.7/site-packages/amazon_linux_extras /lib/python3.7/site-packages/
+# RUN amazon-linux-extras install -y epel

@@ -1,0 +1,52 @@
+FROM amd64/alpine:3.10
+
+# Set ENV_VAR for Greengrass RC to be untarred inside Docker Image
+ARG GREENGRASS_RELEASE_URL=https://d1onfpft10uf5o.cloudfront.net/greengrass-core/downloads/1.10.1/greengrass-linux-x86-64-1.10.1.tar.gz
+
+# Install Greengrass Core Dependencies
+RUN apk add --no-cache tar gzip wget xz shadow libc6-compat ca-certificates iproute2 python2 python3 openjdk8 nodejs-current && \
+    ln -s /usr/bin/java /usr/local/bin/java8 && \
+    wget $GREENGRASS_RELEASE_URL && \
+    ln -s /usr/bin/node /usr/bin/nodejs12.x && \
+    apk del wget
+
+# Copy Greengrass Licenses AWS IoT Greengrass Docker Image
+COPY greengrass-license-v1.pdf /
+# Copy start-up script
+COPY "greengrass-entrypoint.sh" /
+
+# Setup Greengrass inside Docker Image
+RUN export GREENGRASS_RELEASE=$(basename $GREENGRASS_RELEASE_URL) && \
+    tar xzf $GREENGRASS_RELEASE -C / && \
+    rm $GREENGRASS_RELEASE && \
+    useradd -r ggc_user && \
+    groupadd -r ggc_group
+
+# Expose 8883 to pub/sub MQTT messages
+EXPOSE 8883
+
+RUN apk add python3 python3-dev vim git automake autoconf curl wget cmake libtool \
+    gstreamer gstreamer-dev py3-gst gstreamer-tools gst-libav \
+    gst-plugins-base gst-plugins-base-dev gst-plugins-good gst-plugins-good-gtk \
+    gst-plugins-bad gst-plugins-bad-dev gst-plugins-ugly \
+    py-gobject3 py-gobject3-dev gobject-introspection cairo-gobject gobject-introspection-dev \
+    openblas openblas-dev
+RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+RUN python3 get-pip.py
+RUN pip install --upgrade wheel pip setuptools
+
+RUN git clone https://github.com/GStreamer/gst-python.git
+
+WORKDIR gst-python
+
+RUN git fetch --tag
+RUN git checkout `gst-launch-1.0 --version | head -n1 | awk '{print $NF}'`
+ENV PYTHON=/usr/bin/python3
+ENV LIBPYTHON=libpython3.7m.so
+ENV LIBPYTHONPATH=/usr/lib
+ENV PREFIX=/usr
+
+RUN apk add make gcc automake autoconf libtool g++ libffi-dev openssl-dev
+
+RUN ./autogen.sh
+RUN make -j8 && make install
