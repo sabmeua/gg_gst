@@ -41,32 +41,55 @@ RUN export GREENGRASS_RELEASE=$(basename $GREENGRASS_RELEASE_URL) && \
 # Expose 8883 to pub/sub MQTT messages
 EXPOSE 8883
 
+RUN ln -s /lib/python2.7/site-packages/amazon_linux_extras /lib/python3.7/site-packages/
+
 RUN yum update -y && \
     yum install -y gstreamer1 gstreamer1-devel gstreamer1-plugins-base \
     gstreamer1-plugins-base-devel gstreamer1-plugins-bad-free \
     gstreamer1-plugins-bad-free-devel gstreamer1-plugins-good \
     gstreamer1-plugins-base-tools gstreamer1-plugins-bad-free-gtk \
     gstreamer1-plugins-ugly-free gstreamer1-plugins-ugly-free-devel \
-    python3-devel pycairo pycairo-devel pygobject3-devel cairo-gobject-devel && \
-    rm -rf /var/cache/yum
-
-RUN yum update -y && \
+    python3-devel pycairo pycairo-devel pygobject3-devel cairo-gobject-devel \
+    wget nasm bzip2-devel && \
     yum group install -y Development tools && \
-    yum remove -y wget && \
     rm -rf /var/cache/yum
 
 RUN git clone https://github.com/GStreamer/gst-python.git
 WORKDIR gst-python
-
 RUN git fetch --tag
 RUN git checkout `gst-launch-1.0 --version | head -n1 | awk '{print $NF}'`
 ENV PYTHON=/usr/bin/python3
 RUN ./autogen.sh --disable-gtk-doc
 RUN make -j8 && make install
 
-ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH:/usr/local/lib/gstreamer-1.0:/gst-python/examples/plugins
-ENV GST_DEBUG=python:4
-RUN pip3 install PyGObject
+WORKDIR /
 
-RUN ln -s /lib/python2.7/site-packages/amazon_linux_extras /lib/python3.7/site-packages/
-# RUN amazon-linux-extras install -y epel
+RUN wget https://gstreamer.freedesktop.org/src/gst-libav/gst-libav-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'`.tar.xz
+RUN tar xf ./gst-libav-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'`.tar.xz
+RUN ln -s ./gst-libav-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'` ./gst-libav
+WORKDIR gst-libav
+RUN ./configure --enable-gpl
+RUN make -j8 && make install
+
+WORKDIR /
+
+RUN pip3 install PyGObject numpy opencv-python
+
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.17.3/cmake-3.17.3-Linux-x86_64.sh
+RUN chmod +x cmake-3.17.3-Linux-x86_64.sh
+RUN ./cmake-3.17.3-Linux-x86_64.sh --skip-license --prefix=/usr
+
+RUN git clone --recursive https://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp.git
+WORKDIR amazon-kinesis-video-streams-producer-sdk-cpp
+RUN mkdir -p build
+WORKDIR build
+RUN cmake -DBUILD_GSTREAMER_PLUGIN=ON ..
+RUN make -j8
+
+WORKDIR /
+
+ENV GST_PLUGIN_PATH=/usr/local/lib/gstreamer-1.0:/gst-python/examples/plugins:/amazon-kinesis-video-streams-producer-sdk-cpp/build
+ENV GST_DEBUG=python:4
+
+RUN pip3 install tensorflow==1.14 trafaret greengrasssdk
+RUN pip3 install git+https://github.com/jackersson/gstreamer-python.git#egg=gstreamer-python
