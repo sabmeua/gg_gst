@@ -1,7 +1,7 @@
 FROM amazonlinux:2
 
 # Set ENV_VAR for Greengrass RC to be untarred inside Docker Image
-ARG GREENGRASS_RELEASE_URL=https://d1onfpft10uf5o.cloudfront.net/greengrass-core/downloads/1.10.1/greengrass-linux-x86-64-1.10.1.tar.gz
+ARG GREENGRASS_RELEASE_URL=https://d1onfpft10uf5o.cloudfront.net/greengrass-core/downloads/1.10.2/greengrass-linux-x86-64-1.10.2.tar.gz
 
 # Install Greengrass Core Dependencies
 RUN yum update -y && \
