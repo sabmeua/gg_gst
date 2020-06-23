@@ -50,7 +50,7 @@ RUN yum update -y && \
     gstreamer1-plugins-base-tools gstreamer1-plugins-bad-free-gtk \
     gstreamer1-plugins-ugly-free gstreamer1-plugins-ugly-free-devel \
     python3-devel pycairo pycairo-devel pygobject3-devel cairo-gobject-devel \
-    wget nasm bzip2-devel && \
+    wget bzip2-devel orc-devel && \
     yum group install -y Development tools && \
     rm -rf /var/cache/yum
 
@@ -64,16 +64,56 @@ RUN make -j8 && make install
 
 WORKDIR /
 
-RUN wget https://gstreamer.freedesktop.org/src/gst-libav/gst-libav-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'`.tar.xz
-RUN tar xf ./gst-libav-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'`.tar.xz
-RUN ln -s ./gst-libav-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'` ./gst-libav
-WORKDIR gst-libav
-RUN ./configure --enable-gpl
+RUN curl -O -L https://www.nasm.us/pub/nasm/releasebuilds/2.14.02/nasm-2.14.02.tar.bz2
+RUN tar xf nasm-2.14.02.tar.bz2
+WORKDIR nasm-2.14.02
+RUN ./autogen.sh
+RUN ./configure
 RUN make -j8 && make install
 
 WORKDIR /
 
-RUN pip3 install PyGObject numpy opencv-python
+RUN curl -O -L https://www.tortall.net/projects/yasm/releases/yasm-1.3.0.tar.gz
+RUN tar xf yasm-1.3.0.tar.gz
+WORKDIR yasm-1.3.0
+RUN ./configure
+RUN make -j8 && make install
+
+WORKDIR /
+
+# libx264 must be older than ver.0.152
+#RUN git clone https://github.com/mirror/x264.git
+#WORKDIR x264
+#RUN git fetch origin stable
+#RUN git checkout stable
+RUN wget ftp://ftp.videolan.org/pub/x264/snapshots/x264-snapshot-20180801-2245-stable.tar.bz2
+RUN tar xf x264-snapshot-20180801-2245-stable.tar.bz2
+WORKDIR x264-snapshot-20180801-2245-stable
+RUN ./configure --enable-static --enable-shared
+RUN make -j8 && make install
+ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+RUN ldconfig /usr/local/lib
+
+WORKDIR /
+
+RUN wget https://gstreamer.freedesktop.org/src/gst-plugins-ugly/gst-plugins-ugly-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'`.tar.xz
+RUN tar xf ./gst-plugins-ugly-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'`.tar.xz
+RUN ln -s ./gst-plugins-ugly-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'` ./gst-plugins-ugly
+WORKDIR gst-plugins-ugly
+RUN ./configure --enable-x264 --enable-orc
+RUN make -j8 && make install
+
+WORKDIR /
+
+RUN wget https://gstreamer.freedesktop.org/src/gst-libav/gst-libav-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'`.tar.xz
+RUN tar xf ./gst-libav-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'`.tar.xz
+RUN ln -s ./gst-libav-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'` ./gst-libav
+WORKDIR gst-libav
+#RUN ./configure --with-libav-extra-configure="--enable-libx264 --enable-gpl" --enable-gpl --enable-orc
+RUN ./configure --enable-gpl --enable-orc
+RUN make -j8 && make install
+
+WORKDIR /
 
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.17.3/cmake-3.17.3-Linux-x86_64.sh
 RUN chmod +x cmake-3.17.3-Linux-x86_64.sh
@@ -85,11 +125,13 @@ RUN mkdir -p build
 WORKDIR build
 RUN cmake -DBUILD_GSTREAMER_PLUGIN=ON ..
 RUN make -j8
+RUN cp ./*.so /usr/local/lib/gstreamer-1.0
 
 WORKDIR /
 
-ENV GST_PLUGIN_PATH=/usr/local/lib/gstreamer-1.0:/gst-python/examples/plugins:/amazon-kinesis-video-streams-producer-sdk-cpp/build
-ENV GST_DEBUG=python:4
-
+RUN pip3 install PyGObject numpy opencv-python
 RUN pip3 install tensorflow==1.14 trafaret greengrasssdk
 RUN pip3 install git+https://github.com/jackersson/gstreamer-python.git#egg=gstreamer-python
+
+ENV GST_PLUGIN_PATH=/usr/local/lib/gstreamer-1.0
+ENV GST_DEBUG=python:4
