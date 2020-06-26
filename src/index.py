@@ -29,37 +29,9 @@ def bus_call(bus, message, loop):
         loop.quit()
     return True
 
-def dispose_src_cb(src):
-    src.set_state(Gst.State.NULL)
-
-def probe_cb(pad, info, pdata):
-    logger.info('probe ')
-    peer = pad.get_peer()
-    pad.unlink(peer)
-    pdata.pipe.remove(pdata.src)
-    # Can't set the state of the src to NULL from its streaming thread
-    GLib.idle_add(dispose_src_cb, pdata.src)
-
-    pdata.src = Gst.ElementFactory.make('videotestsrc')
-    pdata.src.props.pattern = random.randint(0, 24)
-    pdata.pipe.add(pdata.src)
-    srcpad = pdata.src.get_static_pad ("src")
-    srcpad.link(peer)
-    pdata.src.sync_state_with_parent()
-
-    GLib.timeout_add_seconds(1, timeout_cb, pdata)
-
-    return Gst.PadProbeReturn.REMOVE
-
-def timeout_cb(pdata):
-    srcpad = pdata.src.get_static_pad('src')
-    srcpad.add_probe(Gst.PadProbeType.IDLE, probe_cb, pdata)
-    return GLib.SOURCE_REMOVE
-
 def main():
     logger.info('Start gstream pipeline')
 
-    GObject.threads_init()
     Gst.init(None)
 
     pipe = Gst.Pipeline.new('dynamic')
@@ -68,23 +40,17 @@ def main():
     pipe.add(src, sink)
     src.link(sink)
 
-    pdata = ProbeData(pipe, src)
-
     loop = GObject.MainLoop()
-
-    GLib.timeout_add_seconds(1, timeout_cb, pdata)
 
     bus = pipe.get_bus()
     bus.add_signal_watch()
     bus.connect ("message", bus_call, loop)
 
     pipe.set_state(Gst.State.PLAYING)
-
     try:
         loop.run()
     except Exception as e:
-        logger.error(repr(e))
-
+        logger.error(e)
     pipe.set_state(Gst.State.NULL)
 
 main()
