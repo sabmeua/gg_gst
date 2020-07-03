@@ -129,7 +129,7 @@ RUN cp ./*.so /usr/local/lib/gstreamer-1.0
 
 WORKDIR /
 
-RUN pip3 install PyGObject numpy opencv-python
+RUN pip3 install PyGObject numpy==1.16.4 opencv-python
 RUN pip3 install tensorflow==1.14 trafaret greengrasssdk
 RUN pip3 install git+https://github.com/jackersson/gstreamer-python.git#egg=gstreamer-python
 
