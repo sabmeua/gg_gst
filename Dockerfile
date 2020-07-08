@@ -133,5 +133,16 @@ RUN pip3 install PyGObject numpy==1.16.4 opencv-python
 RUN pip3 install tensorflow==1.14 trafaret greengrasssdk
 RUN pip3 install git+https://github.com/jackersson/gstreamer-python.git#egg=gstreamer-python
 
-ENV GST_PLUGIN_PATH=/usr/local/lib/gstreamer-1.0
+ENV GST_PLUGIN_PATH=/usr/local/lib/gstreamer-1.0:/myplugins
 ENV GST_DEBUG=python:4
+
+#RUN pip3 install Cython contextlib2 pillow lxml matplotlib tf_slim
+#RUN git clone https://github.com/tensorflow/models.git
+#RUN pip3 install pycocotools scipy
+#RUN wget https://github.com/google/protobuf/releases/download/v3.3.0/protoc-3.3.0-linux-x86_64.zip
+#RUN unzip -d /usr protoc-3.3.0-linux-x86_64.zip
+#WORKDIR models/research
+#RUN protoc object_detection/protos/*.proto --python_out=.
+#ENV PYTHONPATH=$PYTHONPATH:/models/research/object_detection:/models/research/slim
+## test object detection api
+#RUN python3 object_detection/builders/model_builder_tf1_test.py
