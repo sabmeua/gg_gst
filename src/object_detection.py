@@ -12,7 +12,6 @@ gi.require_version('GLib', '2.0')
 gi.require_version('GObject', '2.0')
 
 from gi.repository import GstBase, Gst, GLib, GObject
-from object_detection.utils import label_map_util
 
 Gst.init(None)
 
@@ -20,11 +19,10 @@ PROC_WIDTH = 300
 PROC_HEIGHT = 300
 PROC_INTERPOLATION = cv2.INTER_NEAREST
 
-PATH_TO_LABELS = '/models/research/object_detection/data/mscoco_label_map.pbtxt'
-PATH_TO_MODEL = '/models/research/object_detection/ssd_mobilenet_v1_coco_2017_11_17/frozen_inference_graph.pb'
+PATH_TO_MODEL = '/models/frozen_inference_graph.pb'
 
 class GstObjectDetection(GstBase.BaseTransform):
-    __gstmetadata__ = ('Identity Python',
+    __gstmetadata__ = ('Object Detection',
                        'Transform',
                        'Object Detection plugin',
                        'sabmeua<sabme.ua@gmail.com>')
@@ -59,9 +57,6 @@ class GstObjectDetection(GstBase.BaseTransform):
         }
         self.session = tf.Session(graph=graph)
         logging.debug('init')
-
-    def rgb_to_ndarray(self, buffer):
-        return buffer
 
     def resize(self, image: np.ndarray) -> np.ndarray:
         return cv2.resize(image, (PROC_WIDTH, PROC_HEIGHT), PROC_INTERPOLATION)
