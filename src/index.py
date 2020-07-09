@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
+import os
 import sys
-import random
+import traceback
 
 import gi
 gi.require_version('Gst', '1.0')
@@ -13,45 +14,47 @@ import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
-class ProbeData:
-    def __init__(self, pipe, src):
-        self.pipe = pipe
-        self.src = src
+DEFAULT_PIPELINE = 'videotestsrc ! clockoverlay auto-resize=false'\
+                   ' ! videorate ! video/x-raw,format=I420,framerate=15/1'\
+                   ' ! x264enc tune=zerolatency ! h264parse'\
+                   ' ! kvssink stream-name=test framerate=15'
 
-def bus_call(bus, message, loop):
-    t = message.type
-    if t == Gst.MessageType.EOS:
-        sys.stdout.write("End-of-stream\n")
+def on_message(bus: Gst.Bus, message: Gst.Message, loop: GLib.MainLoop):
+    mtype = message.type
+    if mtype == Gst.MessageType.EOS:
+        logger.info("End of stream")
         loop.quit()
-    elif t == Gst.MessageType.ERROR:
+
+    elif mtype == Gst.MessageType.ERROR:
         err, debug = message.parse_error()
-        sys.stderr.write("Error: %s: %s\n" % (err, debug))
+        logger.error(err, debug)
         loop.quit()
+
+    elif mtype == Gst.MessageType.WARNING:
+        err, debug = message.parse_warning()
+        logger.warning(err, debug)
+
     return True
 
 def main():
     logger.info('Start gstream pipeline')
 
-    Gst.init(None)
+    Gst.init(sys.argv)
 
-    pipe = Gst.Pipeline.new('dynamic')
-    src = Gst.ElementFactory.make('videotestsrc')
-    sink = Gst.ElementFactory.make('mysink')
-    pipe.add(src, sink)
-    src.link(sink)
-
-    loop = GObject.MainLoop()
-
-    bus = pipe.get_bus()
+    pipeline = Gst.parse_launch(os.environ.get('PIPELINE', DEFAULT_PIPELINE))
+    bus = pipeline.get_bus()
     bus.add_signal_watch()
-    bus.connect ("message", bus_call, loop)
+    pipeline.set_state(Gst.State.PLAYING)
+    loop = GLib.MainLoop()
+    bus.connect("message", on_message, loop)
 
-    pipe.set_state(Gst.State.PLAYING)
     try:
         loop.run()
-    except Exception as e:
-        logger.error(e)
-    pipe.set_state(Gst.State.NULL)
+    except Exception:
+        traceback.print_exc()
+        loop.quit()
+
+    pipeline.set_state(Gst.State.NULL)
 
 main()
 
@@ -59,4 +62,3 @@ main()
 # Instead the code above will be executed in an infinite loop for our example
 def function_handler(event, context):
     return
-
