@@ -20,6 +20,7 @@ CERT_ID = os.environ.get('CERT_ID')
 
 KVS_CMD = f'kvssink stream-name={STREAM_NAME} framerate=15'\
           ' aws-region=ap-northeast-1'\
+          ' log-config=/kvs_log_configuration'\
           ' iot-certificate="iot-certificate,'\
           f'endpoint={IOT_CREDENTIAL_ENDPOINT},'\
           f'cert-path=/greengrass/certs/{CERT_ID}.cert.pem,'\
