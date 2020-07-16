@@ -45,7 +45,7 @@ RUN ln -s /lib/python2.7/site-packages/amazon_linux_extras /lib/python3.7/site-p
 
 RUN yum update -y && \
     yum install -y python3-devel pycairo pycairo-devel pygobject3-devel cairo-gobject-devel \
-    wget bzip2-devel orc-devel libsoup libsoup-devel && \
+    wget bzip2-devel orc-devel libsoup libsoup-devel pango pango-devel && \
     yum group install -y Development tools && \
     rm -rf /var/cache/yum
 
