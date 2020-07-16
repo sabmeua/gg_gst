@@ -44,25 +44,12 @@ EXPOSE 8883
 RUN ln -s /lib/python2.7/site-packages/amazon_linux_extras /lib/python3.7/site-packages/
 
 RUN yum update -y && \
-    yum install -y gstreamer1 gstreamer1-devel gstreamer1-plugins-base \
-    gstreamer1-plugins-base-devel gstreamer1-plugins-bad-free \
-    gstreamer1-plugins-bad-free-devel gstreamer1-plugins-good \
-    gstreamer1-plugins-base-tools gstreamer1-plugins-bad-free-gtk \
-    gstreamer1-plugins-ugly-free gstreamer1-plugins-ugly-free-devel \
-    python3-devel pycairo pycairo-devel pygobject3-devel cairo-gobject-devel \
-    wget bzip2-devel orc-devel && \
+    yum install -y python3-devel pycairo pycairo-devel pygobject3-devel cairo-gobject-devel \
+    wget bzip2-devel orc-devel libsoup libsoup-devel && \
     yum group install -y Development tools && \
     rm -rf /var/cache/yum
 
-RUN git clone https://github.com/GStreamer/gst-python.git
-WORKDIR gst-python
-RUN git fetch --tag
-RUN git checkout `gst-launch-1.0 --version | head -n1 | awk '{print $NF}'`
-ENV PYTHON=/usr/bin/python3
-RUN ./autogen.sh --disable-gtk-doc
-RUN make -j8 && make install
-
-WORKDIR /
+RUN pip3 install meson ninja install PyGObject numpy==1.16.4 opencv-python tensorflow==1.14 greengrasssdk
 
 RUN curl -O -L https://www.nasm.us/pub/nasm/releasebuilds/2.14.02/nasm-2.14.02.tar.bz2
 RUN tar xf nasm-2.14.02.tar.bz2
@@ -81,37 +68,10 @@ RUN make -j8 && make install
 
 WORKDIR /
 
-# libx264 must be older than ver.0.152
-#RUN git clone https://github.com/mirror/x264.git
-#WORKDIR x264
-#RUN git fetch origin stable
-#RUN git checkout stable
-RUN wget ftp://ftp.videolan.org/pub/x264/snapshots/x264-snapshot-20180801-2245-stable.tar.bz2
-RUN tar xf x264-snapshot-20180801-2245-stable.tar.bz2
-WORKDIR x264-snapshot-20180801-2245-stable
-RUN ./configure --enable-static --enable-shared
-RUN make -j8 && make install
-ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
-RUN ldconfig /usr/local/lib
-
-WORKDIR /
-
-RUN wget https://gstreamer.freedesktop.org/src/gst-plugins-ugly/gst-plugins-ugly-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'`.tar.xz
-RUN tar xf ./gst-plugins-ugly-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'`.tar.xz
-RUN ln -s ./gst-plugins-ugly-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'` ./gst-plugins-ugly
-WORKDIR gst-plugins-ugly
-RUN ./configure --enable-x264 --enable-orc
-RUN make -j8 && make install
-
-WORKDIR /
-
-RUN wget https://gstreamer.freedesktop.org/src/gst-libav/gst-libav-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'`.tar.xz
-RUN tar xf ./gst-libav-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'`.tar.xz
-RUN ln -s ./gst-libav-`gst-launch-1.0 --version | head -n1 | awk '{print $NF}'` ./gst-libav
-WORKDIR gst-libav
-#RUN ./configure --with-libav-extra-configure="--enable-libx264 --enable-gpl" --enable-gpl --enable-orc
-RUN ./configure --enable-gpl --enable-orc
-RUN make -j8 && make install
+RUN git clone https://gitlab.freedesktop.org/gstreamer/gst-build.git
+WORKDIR gst-build
+RUN meson --prefix=/usr build
+RUN (cd build; ninja; ninja install)
 
 WORKDIR /
 
@@ -125,27 +85,20 @@ RUN mkdir -p build
 WORKDIR build
 RUN cmake -DBUILD_GSTREAMER_PLUGIN=ON ..
 RUN make -j8
-RUN cp ./*.so /usr/local/lib/gstreamer-1.0
+RUN cp ./*.so /usr/lib64/gstreamer-1.0
 
 WORKDIR /
 
-RUN pip3 install PyGObject numpy==1.16.4 opencv-python
-RUN pip3 install tensorflow==1.14 trafaret greengrasssdk
 RUN pip3 install git+https://github.com/jackersson/gstreamer-python.git#egg=gstreamer-python
 
-ENV GST_PLUGIN_PATH=/usr/local/lib/gstreamer-1.0:/myplugins
+RUN yum update -y && \
+    yum install -y mesa-dri-drivers mesa-filesystem mesa-libEGL mesa-libGL mesa-libGLES \
+    mesa-libGLU mesa-libOSMesa mesa-libgbm mesa-libglapi mesa-libwayland-egl \
+    mesa-libxatracker mesa-vdpau-drivers mesa-vulkan-drivers mesa-libGLw && \
+    rm -rf /var/cache/yum
+
+ENV GST_PLUGIN_PATH=/myplugins
 ENV GST_DEBUG=python:4
 
 COPY kvs_log_configuration .
 COPY myplugins .
-
-#RUN pip3 install Cython contextlib2 pillow lxml matplotlib tf_slim
-#RUN git clone https://github.com/tensorflow/models.git
-#RUN pip3 install pycocotools scipy
-#RUN wget https://github.com/google/protobuf/releases/download/v3.3.0/protoc-3.3.0-linux-x86_64.zip
-#RUN unzip -d /usr protoc-3.3.0-linux-x86_64.zip
-#WORKDIR models/research
-#RUN protoc object_detection/protos/*.proto --python_out=.
-#ENV PYTHONPATH=$PYTHONPATH:/models/research/object_detection:/models/research/slim
-## test object detection api
-#RUN python3 object_detection/builders/model_builder_tf1_test.py
