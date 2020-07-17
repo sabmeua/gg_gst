@@ -4,6 +4,8 @@ import numpy as np
 import tensorflow.compat.v1 as tf
 import gstreamer.utils as utils
 import cv2
+import greengrasssdk
+import json
 
 import gi
 gi.require_version('GstBase', '1.0')
@@ -18,6 +20,9 @@ Gst.init(None)
 PROC_WIDTH = 300
 PROC_HEIGHT = 300
 PROC_INTERPOLATION = cv2.INTER_NEAREST
+
+PERSON = 1
+THRESHOLD = 0.9
 
 class GstObjectDetection(GstBase.BaseTransform):
     __gstmetadata__ = ('Object Detection',
@@ -79,6 +84,8 @@ class GstObjectDetection(GstBase.BaseTransform):
         self.input_tensors = None
         self.output_tensors = None
         self.model = None
+        self.detection = False
+        self.client = greengrasssdk.client('iot-data')
 
     def resize(self, image: np.ndarray) -> np.ndarray:
         return cv2.resize(image, (PROC_WIDTH, PROC_HEIGHT), PROC_INTERPOLATION)
@@ -89,12 +96,24 @@ class GstObjectDetection(GstBase.BaseTransform):
         # Run inference
         result = self.session.run(self.output_tensors,
                                   feed_dict={self.input_tensors['images']: image})
+
+        prev, self.detection = self.detection, False
         # Select results
         for labels, scores in zip(result['labels'], result['scores']):
-            for label, score in zip(labels, scores):
-                if score < 0.9:
-                    continue
-                logging.debug(f'Detect {label}: score={score}')
+            persons = filter(lambda d: d[0] == PERSON and d[1] > THRESHOLD, zip(labels, scores))
+            for label, score in persons:
+                logging.debug(f'Detect score={score}')
+                self.detection = True
+                if prev is False:
+                    record = json.dumps({
+                        'class': 'person',
+                        'score': score
+                    })
+                    self.client.publish(topic='detection', qos=0, payload=record)
+                    break
+            else:
+                continue
+            break
 
     def do_transform_ip(self, buffer: Gst.Buffer):
         try:
