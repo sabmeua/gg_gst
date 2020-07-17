@@ -19,8 +19,6 @@ PROC_WIDTH = 300
 PROC_HEIGHT = 300
 PROC_INTERPOLATION = cv2.INTER_NEAREST
 
-PATH_TO_MODEL = '/models/frozen_inference_graph.pb'
-
 class GstObjectDetection(GstBase.BaseTransform):
     __gstmetadata__ = ('Object Detection',
                        'Transform',
@@ -35,15 +33,33 @@ class GstObjectDetection(GstBase.BaseTransform):
                                             Gst.PadDirection.SINK,
                                             Gst.PadPresence.ALWAYS,
                                             Gst.Caps.from_string('video/x-raw,format=RGB')))
+    __gproperties__ = {
+        "model": (str,
+                  "Path to model pb file",
+                  "Path to model pb file",
+                  None,
+                  GObject.ParamFlags.READWRITE)
+    }
 
-    def __init__(self):
-        super().__init__()
+    def do_get_property(self, prop: GObject.GParamSpec):
+        if prop.name != 'model':
+            raise AttributeError('Unknown property %s' % prop.name)
+
+        return self.model
+
+    def do_set_property(self, prop: GObject.GParamSpec, value):
+        if prop.name != 'model':
+            raise AttributeError('Unknown property %s' % prop.name)
+
+        self.model = value
+        model_dir = os.environ.get('AWS_GG_RESOURCE_PREFIX', '/models')
+        model_path = f'{model_dir}/{self.model}'
 
         # Prepare graph
         graph = tf.Graph()
         with graph.as_default():
             graph_def = tf.GraphDef()
-            with tf.io.gfile.GFile(PATH_TO_MODEL, 'rb') as f:
+            with tf.io.gfile.GFile(model_path, 'rb') as f:
                 graph_def.ParseFromString(f.read())
                 tf.import_graph_def(graph_def, name='')
 
@@ -56,7 +72,13 @@ class GstObjectDetection(GstBase.BaseTransform):
             'images': graph.get_tensor_by_name('image_tensor:0')
         }
         self.session = tf.Session(graph=graph)
-        logging.debug('init')
+
+    def __init__(self):
+        super().__init__()
+        self.session = None
+        self.input_tensors = None
+        self.output_tensors = None
+        self.model = None
 
     def resize(self, image: np.ndarray) -> np.ndarray:
         return cv2.resize(image, (PROC_WIDTH, PROC_HEIGHT), PROC_INTERPOLATION)
