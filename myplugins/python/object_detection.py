@@ -4,7 +4,6 @@ import numpy as np
 import tensorflow.compat.v1 as tf
 import gstreamer.utils as utils
 import cv2
-import greengrasssdk
 import json
 
 import gi
@@ -14,6 +13,7 @@ gi.require_version('GLib', '2.0')
 gi.require_version('GObject', '2.0')
 
 from gi.repository import GstBase, Gst, GLib, GObject
+from gstreamer.gst_objects_info_meta import gst_meta_write
 
 Gst.init(None)
 
@@ -84,8 +84,6 @@ class GstObjectDetection(GstBase.BaseTransform):
         self.input_tensors = None
         self.output_tensors = None
         self.model = None
-        self.detection = False
-        self.client = greengrasssdk.client('iot-data')
 
     def resize(self, image: np.ndarray) -> np.ndarray:
         return cv2.resize(image, (PROC_WIDTH, PROC_HEIGHT), PROC_INTERPOLATION)
@@ -97,29 +95,25 @@ class GstObjectDetection(GstBase.BaseTransform):
         result = self.session.run(self.output_tensors,
                                   feed_dict={self.input_tensors['images']: image})
 
-        prev, self.detection = self.detection, False
         # Select results
+        detections = []
         for labels, scores in zip(result['labels'], result['scores']):
             persons = filter(lambda d: d[0] == PERSON and d[1] > THRESHOLD, zip(labels, scores))
-            for label, score in persons:
+            for _, score in persons:
                 logging.debug(f'Detect score={score}')
-                self.detection = True
-                if prev is False:
-                    record = json.dumps({
-                        'class': 'person',
-                        'score': score
-                    })
-                    self.client.publish(topic='detection', qos=0, payload=record)
-                    break
-            else:
-                continue
-            break
+                detections.append({
+                    'class_name': 'person',
+                    'confidence': float(score),
+                    'bounding_box': [0, 0, 0, 0], # dummy
+                })
+        return detections
 
     def do_transform_ip(self, buffer: Gst.Buffer):
         try:
             caps = self.sinkpad.get_current_caps()
             image = utils.gst_buffer_with_caps_to_ndarray(buffer, caps)
-            self.process(image)
+            detections = self.process(image)
+            gst_meta_write(buffer, detections)
 
         except Exception as err:
             Gst.error(f'Error {self}: {err}')
