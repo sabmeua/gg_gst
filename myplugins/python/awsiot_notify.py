@@ -36,10 +36,12 @@ class AwsIotNotify(GstBase.BaseTransform):
     def do_transform_ip(self, buffer: Gst.Buffer) -> Gst.FlowReturn:
         try:
             objects = gst_meta_get(buffer)
+            pts = Gst.TIME_ARGS(buffer.pts)
 
             prev, self.detection = self.detection, False
             if objects and not prev:
                 detection = objects[0]
+                detection['pts'] = pts
                 self.detection = True
                 self.client.publish(topic='detection', qos=0, payload=detection)
 
