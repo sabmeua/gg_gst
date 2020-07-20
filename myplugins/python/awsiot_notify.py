@@ -2,6 +2,7 @@ import os
 import logging
 import greengrasssdk
 import json
+import traceback
 
 import gi
 gi.require_version('GstBase', '1.0')
@@ -43,7 +44,7 @@ class AwsIotNotify(GstBase.BaseTransform):
                 self.client.publish(topic='detection', qos=0, payload=detection)
 
         except Exception as err:
-            Gst.error(f"Error {self}: {err}")
+            Gst.error(f"Error {self}: {traceback.format_exc()}")
 
         return Gst.FlowReturn.OK
 

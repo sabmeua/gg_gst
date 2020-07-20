@@ -5,6 +5,7 @@ import tensorflow.compat.v1 as tf
 import gstreamer.utils as utils
 import cv2
 import json
+import traceback
 
 import gi
 gi.require_version('GstBase', '1.0')
@@ -53,6 +54,7 @@ class GstObjectDetection(GstBase.BaseTransform):
         return self.model
 
     def do_set_property(self, prop: GObject.GParamSpec, value):
+        logging.debug('do_set_property')
         if prop.name != 'model':
             raise AttributeError('Unknown property %s' % prop.name)
 
@@ -84,6 +86,7 @@ class GstObjectDetection(GstBase.BaseTransform):
         self.input_tensors = None
         self.output_tensors = None
         self.model = None
+        logging.debug('init')
 
     def resize(self, image: np.ndarray) -> np.ndarray:
         return cv2.resize(image, (PROC_WIDTH, PROC_HEIGHT), PROC_INTERPOLATION)
@@ -116,7 +119,7 @@ class GstObjectDetection(GstBase.BaseTransform):
             gst_meta_write(buffer, detections)
 
         except Exception as err:
-            Gst.error(f'Error {self}: {err}')
+            Gst.error(f'Error {self}: {traceback.format_exc()}')
 
         return Gst.FlowReturn.OK
 
