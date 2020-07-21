@@ -69,7 +69,7 @@ def main():
     try:
         loop.run()
     except Exception:
-        traceback.print_exc()
+        logging.error(traceback.print_exc())
         loop.quit()
 
     pipeline.set_state(Gst.State.NULL)
