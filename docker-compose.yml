@@ -14,6 +14,7 @@ services:
       - ./deployment:/greengrass/ggc/deployment
       - ./log:/greengrass/ggc/var/log
       - ./data:/data
+      - ./myplugins:/myplugins
     ports:
       - "8883:8883"
     entrypoint: "/greengrass-entrypoint.sh"

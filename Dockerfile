@@ -137,7 +137,6 @@ ENV GST_PLUGIN_PATH=/usr/local/lib/gstreamer-1.0:/myplugins
 ENV GST_DEBUG=python:4
 
 COPY kvs_log_configuration .
-COPY myplugins /myplugins
 
 #RUN pip3 install Cython contextlib2 pillow lxml matplotlib tf_slim
 #RUN git clone https://github.com/tensorflow/models.git
