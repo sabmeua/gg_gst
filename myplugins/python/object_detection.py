@@ -59,7 +59,7 @@ class GstObjectDetection(GstBase.BaseTransform):
             raise AttributeError('Unknown property %s' % prop.name)
 
         self.model = value
-        model_dir = os.environ.get('AWS_GG_RESOURCE_PREFIX', '/models')
+        model_dir = os.environ.get('AWS_GG_RESOURCE_PREFIX', '/')
         model_path = f'{model_dir}/{self.model}'
 
         # Prepare graph
