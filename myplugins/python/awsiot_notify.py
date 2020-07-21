@@ -39,11 +39,12 @@ class AwsIotNotify(GstBase.BaseTransform):
             pts = Gst.TIME_ARGS(buffer.pts)
 
             prev, self.detection = self.detection, False
-            if objects and not prev:
-                detection = objects[0]
-                detection['pts'] = pts
+            if objects:
                 self.detection = True
-                self.client.publish(topic='detection', qos=0, payload=detection)
+                if not prev:
+                    detection = objects[0]
+                    detection['pts'] = pts
+                    self.client.publish(topic='object/detection', qos=0, payload=detection)
 
         except Exception as err:
             Gst.error(f"Error {self}: {traceback.format_exc()}")
