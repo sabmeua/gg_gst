@@ -78,5 +78,5 @@ main()
 
 # This is a dummy handler and will not be invoked
 # Instead the code above will be executed in an infinite loop for our example
-def function_handler(event, context):
+def lambda_handler(event, context):
     return
